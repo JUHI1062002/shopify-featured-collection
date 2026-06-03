@@ -1,0 +1,151 @@
+{%- comment -%}
+  sections/main-collection-featured.liquid
+  
+  Handles two modes:
+  - Pinned mode  : default sort + no tag filters → featured products rendered first by Liquid,
+                   remaining products loaded by JS infinite scroll (non-featured only)
+  - Normal mode  : any sort_by or active tag filter → standard infinite scroll, no pinning
+{%- endcomment -%}
+
+{%- liquid
+  assign sort_is_default = false
+  if collection.sort_by == blank or collection.sort_by == collection.default_sort_by
+    assign sort_is_default = true
+  endif
+
+  assign has_active_tags = false
+  if current_tags.size > 0
+    assign has_active_tags = true
+  endif
+
+  assign pinned_mode = false
+  if sort_is_default and has_active_tags == false
+    assign pinned_mode = true
+  endif
+-%}
+
+{%- comment -%} 
+  SINGLE paginate block — we do TWO loops inside it:
+  1. Build the featured_ids_str (used in data-attr for JS)
+  2. Conditionally render featured product cards (pinned mode only)
+{%- endcomment -%}
+{% paginate collection.products by 250 %}
+
+{%- comment -%} Loop 1: collect featured product IDs {%- endcomment -%}
+{%- assign featured_ids_str = "" -%}
+{%- assign featured_count = 0 -%}
+{%- for product in collection.products -%}
+  {%- if product.tags contains 'featured' -%}
+    {%- if featured_count > 0 -%}{%- assign featured_ids_str = featured_ids_str | append: "," -%}{%- endif -%}
+    {%- assign featured_ids_str = featured_ids_str | append: product.id -%}
+    {%- assign featured_count = featured_count | plus: 1 -%}
+  {%- endif -%}
+{%- endfor -%}
+
+<div class="cf-wrapper"
+     id="cf-wrapper"
+     data-handle="{{ collection.handle }}"
+     data-pinned="{{ pinned_mode }}"
+     data-sort="{{ collection.sort_by }}"
+     data-default-sort="{{ collection.default_sort_by }}"
+     data-featured-ids="{{ featured_ids_str }}"
+     data-total="{{ collection.products_count }}">
+
+  {%- comment -%} ── Toolbar ─────────────────────────────────────────────────── {%- endcomment -%}
+  <div class="cf-toolbar">
+    <div class="cf-meta">
+      <h1 class="cf-collection-title">{{ collection.title }}</h1>
+      <span class="cf-product-count">{{ collection.products_count }} products</span>
+      {%- if pinned_mode -%}
+        <span class="cf-badge">
+          {{ featured_count }} featured pinned
+        </span>
+      {%- endif -%}
+    </div>
+
+    <div class="cf-controls">
+      {%- comment -%} Tag filters {%- endcomment -%}
+      {%- if collection.all_tags.size > 0 -%}
+        <div class="cf-filter-wrap">
+          <label class="cf-label" for="cf-tag-filter">Filter</label>
+          <select class="cf-select" id="cf-tag-filter" aria-label="Filter by tag">
+            <option value="">All products</option>
+            {%- for tag in collection.all_tags -%}
+              <option value="{{ tag | handle }}"
+                {%- if current_tags contains tag %} selected{%- endif -%}>
+                {{ tag | capitalize }}
+              </option>
+            {%- endfor -%}
+          </select>
+        </div>
+      {%- endif -%}
+
+      {%- comment -%} Sort {%- endcomment -%}
+      <div class="cf-sort-wrap">
+        <label class="cf-label" for="cf-sort-by">Sort</label>
+        <select class="cf-select" id="cf-sort-by" aria-label="Sort products">
+          <option value="" {%- if collection.sort_by == blank or collection.sort_by == collection.default_sort_by %} selected{%- endif -%}>
+            Featured first
+          </option>
+          <option value="best-selling" {%- if collection.sort_by == 'best-selling' %} selected{%- endif -%}>Best selling</option>
+          <option value="price-ascending" {%- if collection.sort_by == 'price-ascending' %} selected{%- endif -%}>Price: low → high</option>
+          <option value="price-descending" {%- if collection.sort_by == 'price-descending' %} selected{%- endif -%}>Price: high → low</option>
+          <option value="title-ascending" {%- if collection.sort_by == 'title-ascending' %} selected{%- endif -%}>Title: A–Z</option>
+          <option value="created-descending" {%- if collection.sort_by == 'created-descending' %} selected{%- endif -%}>Newest first</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  {%- comment -%} ── Products grid ──────────────────────────────────────────── {%- endcomment -%}
+  <div class="cf-grid" id="cf-grid">
+
+    {%- if pinned_mode -%}
+      {%- comment -%}
+        Loop 2: render featured product cards (server-side, instant paint)
+        We render them here so they appear on first paint with no layout shift.
+      {%- endcomment -%}
+      {%- for product in collection.products -%}
+        {%- if product.tags contains 'featured' -%}
+          {%- render 'cf-product-card', product: product, is_featured: true -%}
+        {%- endif -%}
+      {%- endfor -%}
+    {%- endif -%}
+
+  </div>
+
+  {%- comment -%} ── Loading / end states ─────────────────────────────────── {%- endcomment -%}
+  <div class="cf-loading" id="cf-loading" role="status" aria-live="polite" style="display:none">
+    <span class="cf-spinner" aria-hidden="true"></span>
+    <span>Loading more products&hellip;</span>
+  </div>
+
+  <div class="cf-end" id="cf-end" style="display:none">
+    <span>&#10003; All products loaded</span>
+  </div>
+
+  <div class="cf-empty" id="cf-empty" style="display:none">
+    <p>No products found.</p>
+  </div>
+
+  {%- comment -%} Sentinel element watched by IntersectionObserver {%- endcomment -%}
+  <div id="cf-sentinel" aria-hidden="true"></div>
+
+</div>
+
+{% endpaginate %}
+
+{{ 'collection-featured.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'collection-featured.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Featured Collection",
+  "settings": [],
+  "presets": [
+    {
+      "name": "Scrollable Feature Collection"
+    }
+  ]
+}
+{% endschema %}

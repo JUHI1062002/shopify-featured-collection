@@ -1,0 +1,53 @@
+{%- comment -%}
+  snippets/cf-product-card.liquid
+  Parameters:
+    product    — the product object
+    is_featured — boolean, shows the "Featured" badge
+{%- endcomment -%}
+
+{%- assign card_product = product -%}
+{%- assign has_image = false -%}
+{%- if card_product.featured_image -%}
+  {%- assign has_image = true -%}
+{%- endif -%}
+
+<article class="cf-card{% if is_featured %} cf-card--featured{% endif %}"
+         data-product-id="{{ card_product.id }}"
+         data-handle="{{ card_product.handle }}">
+  <a href="{{ card_product.url }}" class="cf-card__link">
+
+    <div class="cf-card__image-wrap">
+      {%- if has_image -%}
+        <img
+          class="cf-card__image"
+          src="{{ card_product.featured_image | image_url: width: 400 }}"
+          alt="{{ card_product.featured_image.alt | escape | default: card_product.title }}"
+          width="400"
+          height="400"
+          loading="lazy">
+      {%- else -%}
+        <div class="cf-card__no-image">
+          <span>{{ card_product.title | truncate: 20 }}</span>
+        </div>
+      {%- endif -%}
+
+      {%- if is_featured -%}
+        <span class="cf-badge--featured">Featured</span>
+      {%- elsif card_product.compare_at_price > card_product.price -%}
+        <span class="cf-badge--sale">Sale</span>
+      {%- endif -%}
+    </div>
+
+    <div class="cf-card__info">
+      <p class="cf-card__vendor">{{ card_product.vendor }}</p>
+      <h3 class="cf-card__title">{{ card_product.title }}</h3>
+      <div class="cf-card__price">
+        {%- if card_product.compare_at_price > card_product.price -%}
+          <span class="cf-price--compare">{{ card_product.compare_at_price | money }}</span>
+        {%- endif -%}
+        <span class="cf-price--current">{{ card_product.price | money }}</span>
+      </div>
+    </div>
+
+  </a>
+</article>
